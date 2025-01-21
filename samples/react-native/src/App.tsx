@@ -5,8 +5,14 @@ import {
 } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createStackNavigator } from '@react-navigation/stack';
-
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
 
 // Import the Sentry React Native SDK
 import * as Sentry from '@sentry/react-native';
@@ -22,53 +28,57 @@ import { Provider } from 'react-redux';
 import { store } from './reduxApp';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import GesturesTracingScreen from './Screens/GesturesTracingScreen';
-import { Platform, StyleSheet } from 'react-native';
-import { HttpClient } from '@sentry/integrations';
+import { LogBox, Platform, StyleSheet, View } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import PlaygroundScreen from './Screens/PlaygroundScreen';
+import { logWithoutTracing } from './utils';
+import { ErrorEvent } from '@sentry/core';
+import HeavyNavigationScreen from './Screens/HeavyNavigationScreen';
+import WebviewScreen from './Screens/WebviewScreen';
+import { isTurboModuleEnabled } from '@sentry/react-native/dist/js/utils/environment';
 
+if (typeof setImmediate === 'undefined') {
+  require('setimmediate');
+}
+
+LogBox.ignoreAllLogs();
 const isMobileOs = Platform.OS === 'android' || Platform.OS === 'ios';
 
-const reactNavigationInstrumentation =
-  new Sentry.ReactNavigationInstrumentation({
-    routeChangeTimeoutMs: 500, // How long it will wait for the route change to complete. Default is 1000ms
-    enableTimeToInitialDisplay: isMobileOs,
-  });
+const reactNavigationIntegration = Sentry.reactNavigationIntegration({
+  routeChangeTimeoutMs: 500, // How long it will wait for the route change to complete. Default is 1000ms
+  enableTimeToInitialDisplay: isMobileOs,
+  ignoreEmptyBackNavigationTransactions: true,
+});
 
 Sentry.init({
   // Replace the example DSN below with your own DSN:
   dsn: SENTRY_INTERNAL_DSN,
   debug: true,
   environment: 'dev',
-  beforeSend: (event: Sentry.Event) => {
-    console.log('Event beforeSend:', event.event_id);
+  beforeSend: (event: ErrorEvent) => {
+    logWithoutTracing('Event beforeSend:', event.event_id);
     return event;
   },
   beforeSendTransaction(event) {
-    console.log('Transaction beforeSend:', event.event_id);
+    logWithoutTracing('Transaction beforeSend:', event.event_id);
     return event;
   },
   // This will be called with a boolean `didCallNativeInit` when the native SDK has been contacted.
   onReady: ({ didCallNativeInit }) => {
-    console.log('onReady called with didCallNativeInit:', didCallNativeInit);
+    logWithoutTracing(
+      'onReady called with didCallNativeInit:',
+      didCallNativeInit,
+    );
   },
+  enableUserInteractionTracing: true,
   integrations(integrations) {
     integrations.push(
-      new Sentry.ReactNativeTracing({
+      reactNavigationIntegration,
+      Sentry.reactNativeTracingIntegration({
         // The time to wait in ms until the transaction will be finished, For testing, default is 1000 ms
-        idleTimeout: 5000,
-        routingInstrumentation: reactNavigationInstrumentation,
-        enableUserInteractionTracing: true,
-        ignoreEmptyBackNavigationTransactions: true,
-        beforeNavigate: (context: Sentry.ReactNavigationTransactionContext) => {
-          // Example of not sending a transaction for the screen with the name "Manual Tracker"
-          if (context.data.route.name === 'ManualTracker') {
-            context.sampled = false;
-          }
-
-          return context;
-        },
+        idleTimeoutMs: 5_000,
       }),
-      new HttpClient({
+      Sentry.httpClientIntegration({
         // These options are effective only in JS.
         // This array can contain tuples of `[begin, end]` (both inclusive),
         // Single status codes, or a combinations of both.
@@ -78,13 +88,27 @@ Sentry.init({
         // default: [/.*/]
         failedRequestTargets: [/.*/],
       }),
-      Sentry.metrics.metricsAggregatorIntegration(),
+      Sentry.mobileReplayIntegration({
+        maskAllImages: true,
+        maskAllVectors: true,
+        maskAllText: true,
+      }),
+      Sentry.appStartIntegration({
+        standalone: false,
+      }),
+      Sentry.reactNativeErrorHandlersIntegration({
+        patchGlobalPromise: Platform.OS === 'ios' && isTurboModuleEnabled()
+          // The global patch doesn't work on iOS with the New Architecture in this Sample app
+          // In
+          ? false
+          : true,
+      }),
     );
     return integrations.filter(i => i.name !== 'Dedupe');
   },
   enableAutoSessionTracking: true,
   // For testing, session close when 5 seconds (instead of the default 30) in the background.
-  sessionTrackingIntervalMillis: 5000,
+  sessionTrackingIntervalMillis: 30000,
   // This will capture ALL TRACES and likely use up all your quota
   enableTracing: true,
   tracesSampleRate: 1.0,
@@ -100,10 +124,13 @@ Sentry.init({
   // otherwise they will not work.
   // release: 'myapp@1.2.3+1',
   // dist: `1`,
-  _experiments: {
-    profilesSampleRate: 1.0,
-  },
-  enableSpotlight: true,
+  profilesSampleRate: 1.0,
+  replaysSessionSampleRate: 1.0,
+  replaysOnErrorSampleRate: 1.0,
+  spotlight: true,
+  // This should be disabled when manually initializing the native SDK
+  // Note that options from JS are not passed to the native SDKs when initialized manually
+  autoInitializeNativeSdk: true,
 });
 
 const Stack = isMobileOs
@@ -111,7 +138,7 @@ const Stack = isMobileOs
   : createStackNavigator();
 const Tab = createBottomTabNavigator();
 
-const TabOneStack = Sentry.withProfiler(
+const ErrorsTabNavigator = Sentry.withProfiler(
   () => {
     return (
       <GestureHandlerRootView style={styles.wrapper}>
@@ -130,7 +157,7 @@ const TabOneStack = Sentry.withProfiler(
   { name: 'ErrorsTab' },
 );
 
-const TabTwoStack = Sentry.withProfiler(
+const PerformanceTabNavigator = Sentry.withProfiler(
   () => {
     return (
       <GestureHandlerRootView style={styles.wrapper}>
@@ -147,6 +174,10 @@ const TabTwoStack = Sentry.withProfiler(
               component={ManualTrackerScreen}
             />
             <Stack.Screen
+              name="HeavyNavigation"
+              component={HeavyNavigationScreen}
+            />
+            <Stack.Screen
               name="PerformanceTiming"
               component={PerformanceTimingScreen}
             />
@@ -160,15 +191,8 @@ const TabTwoStack = Sentry.withProfiler(
   { name: 'PerformanceTab' },
 );
 
-function BottomTabs() {
-  const navigation = React.useRef<NavigationContainerRef<{}>>(null);
-
+function BottomTabsNavigator() {
   return (
-    <NavigationContainer
-      ref={navigation}
-      onReady={() => {
-        reactNavigationInstrumentation.registerNavigationContainer(navigation);
-      }}>
       <Tab.Navigator
         screenOptions={{
           headerShown: false,
@@ -177,9 +201,10 @@ function BottomTabs() {
       >
         <Tab.Screen
           name="ErrorsTab"
-          component={TabOneStack}
+          component={ErrorsTabNavigator}
           options={{
             tabBarLabel: 'Errors',
+            // eslint-disable-next-line react/no-unstable-nested-components
             tabBarIcon: ({ focused, color, size }) => (
               <Ionicons
                 name={focused ? 'bug' : 'bug-outline'}
@@ -191,9 +216,10 @@ function BottomTabs() {
         />
         <Tab.Screen
           name="PerformanceTab"
-          component={TabTwoStack}
+          component={PerformanceTabNavigator}
           options={{
             tabBarLabel: 'Performance',
+            // eslint-disable-next-line react/no-unstable-nested-components
             tabBarIcon: ({ focused, color, size }) => (
               <Ionicons
                 name={focused ? 'speedometer' : 'speedometer-outline'}
@@ -203,8 +229,86 @@ function BottomTabs() {
             ),
           }}
         />
+        <Tab.Screen
+          name="PlaygroundTab"
+          component={PlaygroundScreen}
+          options={{
+            tabBarLabel: 'Playground',
+            // eslint-disable-next-line react/no-unstable-nested-components
+            tabBarIcon: ({ focused, color, size }) => (
+              <Ionicons
+                name={
+                  focused ? 'american-football' : 'american-football-outline'
+                }
+                size={size}
+                color={color}
+              />
+            ),
+          }}
+        />
       </Tab.Navigator>
+  );
+}
+
+function RootNavigationContainer() {
+  const navigation = React.useRef<NavigationContainerRef<{}>>(null);
+
+  return (
+    <NavigationContainer
+      ref={navigation}
+      onReady={() => {
+        reactNavigationIntegration.registerNavigationContainer(navigation);
+      }}>
+      <Stack.Navigator
+        screenOptions={{
+          headerShown: false,
+        }}>
+        <Stack.Screen name="BottomTabs" component={BottomTabsNavigator} />
+        <Stack.Screen name="Webview" component={WebviewScreen} options={{ headerShown: true }} />
+      </Stack.Navigator>
     </NavigationContainer>
+  );
+}
+
+function App() {
+  return (
+    <>
+      <RootNavigationContainer />
+      <RunningIndicator />
+    </>
+  );
+}
+
+function RunningIndicator() {
+  if (Platform.OS !== 'android' && Platform.OS !== 'ios') {
+    return null;
+  }
+
+  return <RotatingBox />;
+}
+
+function RotatingBox() {
+  const sv = useSharedValue<number>(0);
+
+  React.useEffect(() => {
+    sv.value = withRepeat(
+      withTiming(360, {
+        duration: 1_000_000,
+        easing: Easing.linear,
+      }),
+      -1,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${sv.value * 360}deg` }],
+  }));
+
+  return (
+    <View style={styles.container}>
+      <Animated.View style={[styles.box, animatedStyle]} />
+    </View>
   );
 }
 
@@ -212,6 +316,17 @@ const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
   },
+  container: {
+    position: 'absolute',
+    left: 30,
+    top: 30,
+  },
+  box: {
+    height: 50,
+    width: 50,
+    backgroundColor: '#b58df1',
+    borderRadius: 5,
+  },
 });
 
-export default Sentry.wrap(BottomTabs);
+export default Sentry.wrap(App);

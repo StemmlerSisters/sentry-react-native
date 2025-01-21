@@ -5,29 +5,32 @@ import { SplashScreen, Stack, useNavigationContainerRef } from 'expo-router';
 import { useEffect } from 'react';
 
 import { useColorScheme } from '@/components/useColorScheme';
-import { HttpClient } from '@sentry/integrations';
 import { SENTRY_INTERNAL_DSN } from '../utils/dsn';
 import * as Sentry from '@sentry/react-native';
+import { ErrorEvent } from '@sentry/core';
 import { isExpoGo } from '../utils/isExpoGo';
+import { LogBox } from 'react-native';
 
 export {
   // Catch any errors thrown by the Layout component.
   ErrorBoundary,
 } from 'expo-router';
 
+LogBox.ignoreAllLogs();
+
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
-const routingInstrumentation = new Sentry.ReactNavigationInstrumentation({
+const navigationIntegration = Sentry.reactNavigationIntegration({
   enableTimeToInitialDisplay: !isExpoGo(), // This is not supported in Expo Go.
 });
 
-process.env.EXPO_SKIP_DURING_EXPORT !== 'true' && Sentry.init({
+Sentry.init({
   // Replace the example DSN below with your own DSN:
   dsn: SENTRY_INTERNAL_DSN,
   debug: true,
   environment: 'dev',
-  beforeSend: (event: Sentry.Event) => {
+  beforeSend: (event: ErrorEvent) => {
     console.log('Event beforeSend:', event.event_id);
     return event;
   },
@@ -41,7 +44,7 @@ process.env.EXPO_SKIP_DURING_EXPORT !== 'true' && Sentry.init({
   },
   integrations(integrations) {
     integrations.push(
-      new HttpClient({
+      Sentry.httpClientIntegration({
         // These options are effective only in JS.
         // This array can contain tuples of `[begin, end]` (both inclusive),
         // Single status codes, or a combinations of both.
@@ -51,10 +54,9 @@ process.env.EXPO_SKIP_DURING_EXPORT !== 'true' && Sentry.init({
         // default: [/.*/]
         failedRequestTargets: [/.*/],
       }),
-      Sentry.metrics.metricsAggregatorIntegration(),
-      new Sentry.ReactNativeTracing({
-        routingInstrumentation,
-      }),
+      navigationIntegration,
+      Sentry.reactNativeTracingIntegration(),
+      Sentry.browserReplayIntegration(),
     );
     return integrations.filter(i => i.name !== 'Dedupe');
   },
@@ -76,10 +78,10 @@ process.env.EXPO_SKIP_DURING_EXPORT !== 'true' && Sentry.init({
   // otherwise they will not work.
   // release: 'myapp@1.2.3+1',
   // dist: `1`,
-  _experiments: {
-    profilesSampleRate: 0,
-  },
-  enableSpotlight: true,
+  profilesSampleRate: 1.0,
+  // replaysOnErrorSampleRate: 1.0,
+  replaysSessionSampleRate: 1.0,
+  spotlight: true,
 });
 
 function RootLayout() {
@@ -87,7 +89,7 @@ function RootLayout() {
 
   useEffect(() => {
     if (ref) {
-      routingInstrumentation.registerNavigationContainer(ref);
+      navigationIntegration.registerNavigationContainer(ref);
     }
   }, [ref]);
 

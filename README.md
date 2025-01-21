@@ -1,12 +1,8 @@
-<p align="center">
-  <a href="https://sentry.io/?utm_source=github&utm_medium=logo" target="_blank">
-    <picture>
-      <source srcset="https://sentry-brand.storage.googleapis.com/sentry-logo-white.png" media="(prefers-color-scheme: dark)" />
-      <source srcset="https://sentry-brand.storage.googleapis.com/sentry-logo-black.png" media="(prefers-color-scheme: light), (prefers-color-scheme: no-preference)" />
-      <img src="https://sentry-brand.storage.googleapis.com/sentry-logo-black.png" alt="Sentry" width="280">
-    </picture>
-  </a>
-</p>
+<div align="center">
+    <a href="https://sentry.io/?utm_source=github&utm_medium=logo" target="_blank">
+        <img src="https://sentry-brand.storage.googleapis.com/github-banners/github-sdk-react.jpg" alt="Sentry for React Native">
+    </a>
+</div>
 
 _Bad software is everywhere, and we're tired of it. Sentry is on a mission to help developers write better software faster, so we can get back to enjoying technology. If you want to join us [<kbd>**Check out our open positions**</kbd>](https://sentry.io/careers/)_
 
@@ -18,6 +14,14 @@ _Bad software is everywhere, and we're tired of it. Sentry is on a mission to he
 [![npm dt](https://img.shields.io/npm/dt/@sentry/react-native.svg)](https://www.npmjs.com/package/@sentry/react-native)
 [![Discord Chat](https://img.shields.io/discord/621778831602221064?logo=discord&logoColor=ffffff&color=7389D8)](https://discord.gg/PXa5Apfe7K)
 [![Runs with Expo](https://img.shields.io/badge/Runs%20with%20Expo-4630EB.svg?style=flat-square&logo=EXPO&labelColor=f3f3f3&logoColor=000)](https://expo.dev/)
+
+## Releases
+
+This repo uses the following ways to release SDK updates:
+
+- `Pre-release`: We create pre-releases (alpha, beta, RC,…) for larger and potentially more impactful changes, such as new features or major versions.
+- `Latest`: We continuously release major/minor/hotfix versions from the `main` branch. These releases go through all our internal quality gates and are very safe to use and intended to be the default for most teams.
+- `Stable`: We promote releases from `Latest` when they have been used in the field for some time and in scale, considering time since release, adoption, and other quality and stability metrics. These releases will be indicated on [the releases page](https://github.com/getsentry/sentry-react-native/releases/) with the `Stable` suffix.
 
 ## Requirements
 

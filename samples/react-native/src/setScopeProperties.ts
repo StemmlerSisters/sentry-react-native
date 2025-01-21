@@ -1,5 +1,5 @@
 import * as Sentry from '@sentry/react-native';
-import { SeverityLevel } from '@sentry/types';
+import { SeverityLevel } from '@sentry/core';
 
 export const setScopeProperties = () => {
   const dateString = new Date().toString();
@@ -75,6 +75,13 @@ export const setScopeProperties = () => {
     },
     category: 'TEST-CATEGORY',
   });
+
+  console.log('This is a console log message.');
+  console.info('This is a console info message.');
+  console.warn('This is a console warn message.');
+  console.error('This is a console error message.');
+  console.debug('This is a console debug message.');
+  console.trace('This is a console trace message.');
 
   console.log('Test scope properties were set.');
 };

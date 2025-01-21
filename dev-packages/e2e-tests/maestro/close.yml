@@ -1,0 +1,8 @@
+appId: ${APP_ID}
+jsEngine: graaljs
+---
+- runFlow: utils/launchTestAppClear.yml
+- tapOn: "Close"
+
+- assertNotVisible:
+    id: "eventId"

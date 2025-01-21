@@ -1,0 +1,7 @@
+*.png
+*.log
+*.app
+*.apk
+
+/react-native-versions
+/maestro-logs
