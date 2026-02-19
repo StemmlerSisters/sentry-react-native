@@ -36,6 +36,10 @@
   });
   ```
 
+### Fixes
+
+- Fix race condition where iOS dSYM upload runs before debug symbols are fully generated ([#5653](https://github.com/getsentry/sentry-react-native/pull/5653))
+
 ### Dependencies
 
 - Bump JavaScript SDK from v10.38.0 to v10.39.0 ([#5674](https://github.com/getsentry/sentry-react-native/pull/5674))
